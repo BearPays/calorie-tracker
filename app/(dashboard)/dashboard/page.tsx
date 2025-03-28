@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
@@ -30,17 +29,10 @@ export default function DashboardPage() {
 
   // Redirect if not logged in
   useEffect(() => {
-    // Only redirect if we're sure the user is not logged in
     if (!isLoading && !user && !redirectAttempted.current) {
       console.log("[Dashboard] User not logged in, redirecting to login")
       redirectAttempted.current = true
-
-      // Use a timeout to avoid immediate redirect which can cause issues
-      const redirectTimer = setTimeout(() => {
-        router.push("/auth/login")
-      }, 100)
-
-      return () => clearTimeout(redirectTimer)
+      router.replace("/auth/login")
     }
   }, [user, isLoading, router])
 
@@ -86,7 +78,7 @@ export default function DashboardPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Not Logged In</h1>
           <p className="mb-4">Redirecting to login...</p>
-          <Button onClick={() => router.push("/auth/login")}>Go to Login</Button>
+          <Button onClick={() => router.replace("/auth/login")}>Go to Login</Button>
         </div>
       </div>
     )
@@ -94,69 +86,35 @@ export default function DashboardPage() {
 
   return (
     <div className="container py-6">
-      <h1 className="text-3xl font-bold mb-6">Welcome back, {user.name}</h1>
+      <h1 className="text-3xl font-bold mb-6">Welcome back, {user.email}</h1>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Log a Meal</CardTitle>
-            <CardDescription>Record what you ate and track your calories</CardDescription>
+            <CardTitle>Add New Meal</CardTitle>
+            <CardDescription>Track your calories for today</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <div className="flex">
-                  <Input
-                    id="date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setDate(getCurrentDate())}
-                    className="ml-2"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    <span className="sr-only">Today</span>
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="meal-name">Meal Name</Label>
+                <Label htmlFor="mealName">Meal Name</Label>
                 <Input
-                  id="meal-name"
-                  placeholder="Breakfast, Lunch, Dinner, etc."
+                  id="mealName"
+                  placeholder="e.g., Breakfast"
                   value={mealName}
                   onChange={(e) => setMealName(e.target.value)}
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="foods">Foods</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => setShowAIAssistant(true)}
-                  >
-                    <PlusCircle className="mr-1 h-3 w-3" />
-                    AI Assistant
-                  </Button>
-                </div>
-                <Textarea
+                <Label htmlFor="foods">Foods (comma-separated)</Label>
+                <Input
                   id="foods"
-                  placeholder="Enter foods, separated by commas"
+                  placeholder="e.g., eggs, toast, coffee"
                   value={foods}
                   onChange={(e) => setFoods(e.target.value)}
-                  rows={3}
+                  required
                 />
               </div>
 
@@ -165,14 +123,16 @@ export default function DashboardPage() {
                 <Input
                   id="calories"
                   type="number"
-                  placeholder="Total calories"
+                  placeholder="e.g., 500"
                   value={calories}
                   onChange={(e) => setCalories(e.target.value)}
+                  required
                 />
               </div>
 
               <Button type="submit" className="w-full">
-                Log Meal
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Meal
               </Button>
             </form>
           </CardContent>
@@ -180,41 +140,51 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Today&apos;s Summary</CardTitle>
-            <CardDescription>{formatDateForDisplay(date)}</CardDescription>
+            <CardTitle>Daily Summary</CardTitle>
+            <CardDescription>Your calorie intake for {formatDateForDisplay(date)}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total Calories</span>
-                <span className="text-2xl font-bold">{totalCalories}</span>
-              </div>
-              <DailyCalorieChart date={date} />
-            </div>
+            <div className="text-3xl font-bold">{totalCalories}</div>
+            <p className="text-sm text-muted-foreground">calories consumed</p>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 lg:col-span-1">
+        <Card>
           <CardHeader>
-            <CardTitle>Recent Meals</CardTitle>
-            <CardDescription>Your last few logged meals</CardDescription>
+            <CardTitle>AI Assistant</CardTitle>
+            <CardDescription>Get help with meal planning</CardDescription>
           </CardHeader>
           <CardContent>
-            <RecentMeals />
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowAIAssistant(!showAIAssistant)}
+            >
+              <Calendar className="mr-2 h-4 w-4" />
+              {showAIAssistant ? "Hide Assistant" : "Show Assistant"}
+            </Button>
           </CardContent>
         </Card>
       </div>
 
       {showAIAssistant && (
-        <MealAIAssistant
+        <MealAIAssistant 
           onClose={() => setShowAIAssistant(false)}
-          onAddFoods={(foodsText, caloriesValue) => {
-            setFoods(foodsText)
-            setCalories(caloriesValue)
+          onAddFoods={(foods, calories) => {
+            setFoods(foods)
+            setCalories(calories)
             setShowAIAssistant(false)
           }}
         />
       )}
+
+      <div className="mt-8">
+        <DailyCalorieChart date={date} />
+      </div>
+
+      <div className="mt-8">
+        <RecentMeals />
+      </div>
     </div>
   )
 }

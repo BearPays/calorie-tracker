@@ -1,34 +1,74 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
-  // Get the pathname
-  const path = request.nextUrl.pathname
+export async function middleware(request: NextRequest) {
+  console.log("[Middleware] Processing request for:", request.nextUrl.pathname)
+  
+  // Create a response to modify
+  const response = NextResponse.next()
 
-  // Check if the user is logged in
-  const isLoggedIn = request.cookies.has("logged-in")
+  try {
+    // Create a Supabase client
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name) {
+            return request.cookies.get(name)?.value
+          },
+          set(name, value, options) {
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            })
+          },
+          remove(name, options) {
+            response.cookies.set({
+              name,
+              value: '',
+              ...options,
+            })
+          },
+        },
+      }
+    )
 
-  // Define public routes that don't require authentication
-  const isPublicRoute = path === "/" || path.startsWith("/auth") || path === "/auto-login" || path === "/debug"
+    // Get the session
+    const { data: { session } } = await supabase.auth.getSession()
 
-  console.log(`[Middleware] Path: ${path}, LoggedIn: ${isLoggedIn}, PublicRoute: ${isPublicRoute}`)
+    const path = request.nextUrl.pathname
 
-  // Redirect unauthenticated users to login
-  if (!isLoggedIn && !isPublicRoute) {
-    console.log("[Middleware] Redirecting to login")
-    return NextResponse.redirect(new URL("/auth/login", request.url))
+    // Protected routes
+    if (!session && path.startsWith('/(dashboard)')) {
+      console.log("[Middleware] No session, redirecting to login")
+      return NextResponse.redirect(new URL('/auth/login', request.url))
+    }
+
+    // Auth routes when logged in
+    if (session && path.startsWith('/auth')) {
+      console.log("[Middleware] Session exists, redirecting to dashboard")
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+
+    return response
+  } catch (error) {
+    console.error("[Middleware] Error:", error)
+    return response
   }
-
-  // Prevent authenticated users from accessing auth pages
-  if (isLoggedIn && path.startsWith("/auth")) {
-    console.log("[Middleware] Redirecting to dashboard")
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
-  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 }
 
